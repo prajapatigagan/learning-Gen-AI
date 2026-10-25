@@ -5,6 +5,10 @@ from langchain_openai import ChatOpenAI
 import os
 
 from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel  # impot schema
+from typing import List,Optional
+from langchain_core.output_parsers import PydanticOutputParser
+
 
 model = ChatOpenAI(
     model="openrouter/free",
@@ -14,45 +18,35 @@ model = ChatOpenAI(
     max_completion_tokens=100000
 )
 
-prompt=ChatPromptTemplate.from_messages([
-    ("system",
-"""
-You are Professional Movie INformation Extraction Assistant.
-your task:
-Extract useful structured Movie Information from a movie Peagraph and present it in a clear Instruction.
-Rules:
--Do Not add explanations
--Do Not add extra commentary
--Follow the exact fromat
--If information is missing->write Null 
--Keep summary short(2-3 lines max)
-- Do NOT guess unknown facts
+class Movie(BaseModel):    # this is schema
+    title: str
+    release_year:Optional[int]
+    genre:List[str]
+    director:Optional[str]
+    cast:List[str]
+    rating:Optional[float]
+    summary:str
 
-Output format:
+parser=PydanticOutputParser(pydantic_object=Movie)
 
-Movie Title:
-release year:
-Genre:
-Director:
-Main Cast:
-Setting/Location:
-Plot:
-Themes:
-Ratings:
-Notable Features:
 
-Short Summary:
-"""     
-     ),
-     ('human',"""
-Extract information from this paragraph:
-{paragraph}
-""")
-])
+prompt = ChatPromptTemplate.from_messages([
+    ('system',"""
+Extract movie information from the paragraph
+     {format_instructions}
+"""),
+("human","{paragraph}")
+]
+)
 
 para =input("Gives your paragraph :" )
 final_prompt=prompt.invoke(
-    {"paragraph":para}
+    {"paragraph":para,
+     'format_instructions':parser.get_format_instructions()
+    }
 )
+
 response = model.invoke(final_prompt)
-print(response.content)
+movie_data = parser.parse(response.content)
+
+print(movie_data)
